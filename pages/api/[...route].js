@@ -169,6 +169,15 @@ export default async function handler(req, res) {
       message: process.env.NODE_ENV === 'development' ? error.message : undefined
     })
   }
+  } catch (error) {
+    console.error('Erro geral no handler:', error)
+    console.error('Stack:', error.stack)
+    corsHeaders(res)
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
+  }
 }
 
 // Configurar bodyParser para aceitar até 10MB
