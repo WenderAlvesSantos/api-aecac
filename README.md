@@ -81,11 +81,15 @@ O token é obtido através do endpoint `/api/auth/login`.
 
 ## 🌐 Deploy na Vercel
 
+Veja instruções detalhadas em [DEPLOY.md](./DEPLOY.md).
+
+**Resumo:**
 1. Conecte seu repositório à Vercel
 2. Configure as variáveis de ambiente na Vercel:
-   - `MONGODB_URI`
-   - `JWT_SECRET`
-3. Deploy automático será feito
+   - `MONGODB_URI`: URI de conexão do MongoDB
+   - `JWT_SECRET`: Chave secreta para JWT (use uma string aleatória segura)
+3. O Vercel detectará automaticamente que é um projeto Next.js
+4. Após o deploy, configure a URL da API no projeto frontend
 
 ## 📝 Notas
 
