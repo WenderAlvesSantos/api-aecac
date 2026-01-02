@@ -16,11 +16,17 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
+      console.log('=== GET CONFIGURACOES ===')
+      console.log('MONGODB_URI configurada:', !!process.env.MONGODB_URI)
+      
       const client = await clientPromise
       if (!client) {
         throw new Error('Cliente MongoDB não conectado')
       }
+      console.log('Cliente MongoDB conectado')
+      
       const db = client.db('aecac')
+      console.log('Database aecac acessada')
       
       // Buscar configurações ou retornar objeto vazio se não existir
       let configuracoes = await db.collection('configuracoes').findOne({})
@@ -42,10 +48,16 @@ export default async function handler(req, res) {
         await db.collection('configuracoes').insertOne(configuracoes)
       }
       
+      console.log('Configurações encontradas:', !!configuracoes)
       res.status(200).json(configuracoes)
     } catch (error) {
       console.error('Erro ao buscar configurações:', error)
-      res.status(500).json({ error: 'Erro ao buscar configurações' })
+      console.error('Stack:', error.stack)
+      res.status(500).json({ 
+        error: 'Erro ao buscar configurações',
+        message: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      })
     }
   } else if (req.method === 'PUT') {
     return requireAuth(async (req, res) => {
