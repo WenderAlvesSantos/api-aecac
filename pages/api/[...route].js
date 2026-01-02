@@ -29,8 +29,9 @@ export default async function handler(req, res) {
 
   // Set CORS headers
   corsHeaders(res)
-
-  // Extrair rota da query (Next.js passa como array no req.query.route)
+  
+  try {
+    // Extrair rota da query (Next.js passa como array no req.query.route)
   // Quando a rota é /api/auth/login, req.query.route será ['auth', 'login']
   let route = req.query.route || []
   let routePath = ''
@@ -154,14 +155,19 @@ export default async function handler(req, res) {
     }
 
     if (handler) {
-      return handler(req, res)
+      return await handler(req, res)
     }
 
     // Rota não encontrada
     res.status(404).json({ error: 'Rota não encontrada' })
   } catch (error) {
     console.error('Erro no roteamento:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
+    console.error('Stack:', error.stack)
+    corsHeaders(res)
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
   }
 }
 

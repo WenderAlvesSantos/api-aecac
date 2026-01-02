@@ -17,6 +17,9 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const client = await clientPromise
+      if (!client) {
+        throw new Error('Cliente MongoDB não conectado')
+      }
       const db = client.db('aecac')
       
       // Buscar configurações ou retornar objeto vazio se não existir
