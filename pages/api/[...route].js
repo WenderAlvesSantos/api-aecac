@@ -1,6 +1,15 @@
 // Rota unificada para todas as APIs - resolve o limite de 12 funções serverless
 import { corsHeaders, handleOptions } from '../../middleware/cors'
 
+// Configurar bodyParser para aceitar até 10MB
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+}
+
 // Importar handlers estáticos
 import eventosIndex from '../../_handlers/eventos/index'
 import eventosId from '../../_handlers/eventos/[id]'
@@ -8,6 +17,8 @@ import parceirosIndex from '../../_handlers/parceiros/index'
 import parceirosId from '../../_handlers/parceiros/[id]'
 import empresasIndex from '../../_handlers/empresas/index'
 import empresasId from '../../_handlers/empresas/[id]'
+import empresasAprovar from '../../_handlers/empresas/aprovar'
+import empresasPendentes from '../../_handlers/empresas/pendentes'
 import galeriaIndex from '../../_handlers/galeria/index'
 import galeriaId from '../../_handlers/galeria/[id]'
 import galeriaOrdem from '../../_handlers/galeria/ordem'
@@ -20,6 +31,27 @@ import usuariosId from '../../_handlers/usuarios/[id]'
 import authLogin from '../../_handlers/auth/login'
 import authRegister from '../../_handlers/auth/register'
 import authPerfil from '../../_handlers/auth/perfil'
+import authLoginAssociado from '../../_handlers/auth/login-associado'
+import authRegisterAssociado from '../../_handlers/auth/register-associado'
+import beneficiosIndex from '../../_handlers/beneficios/index'
+import beneficiosId from '../../_handlers/beneficios/[id]'
+import beneficiosResgatar from '../../_handlers/beneficios/resgatar'
+import beneficiosResgatarPublico from '../../_handlers/beneficios/resgatar-publico'
+import beneficiosResgates from '../../_handlers/beneficios/resgates'
+import capacitacoesIndex from '../../_handlers/capacitacoes/index'
+import capacitacoesId from '../../_handlers/capacitacoes/[id]'
+import capacitacoesInscrever from '../../_handlers/capacitacoes/inscrever'
+import capacitacoesInscreverPublico from '../../_handlers/capacitacoes/inscrever-publico'
+import capacitacoesInscritos from '../../_handlers/capacitacoes/inscritos'
+import eventosInscreverPublico from '../../_handlers/eventos/inscrever-publico'
+import eventosInscritos from '../../_handlers/eventos/inscritos'
+import notificacoesIndex from '../../_handlers/notificacoes/index'
+import notificacoesId from '../../_handlers/notificacoes/[id]'
+import notificacoesMarcarTodas from '../../_handlers/notificacoes/marcar-todas'
+import relatoriosIndex from '../../_handlers/relatorios/index'
+import exportarIndex from '../../_handlers/exportar/index'
+import buscarCNPJ from '../../_handlers/consultas/buscar-cnpj'
+import buscarCEP from '../../_handlers/consultas/buscar-cep'
 
 export default async function handler(req, res) {
   try {
@@ -89,6 +121,7 @@ export default async function handler(req, res) {
     }
     
     const id = Array.isArray(route) && route.length > 0 ? route[route.length - 1] : null
+    console.log('id extraído:', id)
 
     // Roteamento baseado no caminho
     let handler = null
@@ -96,17 +129,14 @@ export default async function handler(req, res) {
     // Auth routes
     if (routePath === 'auth/login') {
       handler = authLogin
+    } else if (routePath === 'auth/login-associado') {
+      handler = authLoginAssociado
     } else if (routePath === 'auth/register') {
       handler = authRegister
+    } else if (routePath === 'auth/register-associado') {
+      handler = authRegisterAssociado
     } else if (routePath === 'auth/perfil') {
       handler = authPerfil
-    }
-    // Eventos
-    else if (routePath === 'eventos') {
-      handler = eventosIndex
-    } else if (routePath.startsWith('eventos/') && id && id !== 'eventos') {
-      req.query.id = id
-      handler = eventosId
     }
     // Parceiros
     else if (routePath === 'parceiros') {
@@ -118,7 +148,11 @@ export default async function handler(req, res) {
     // Empresas
     else if (routePath === 'empresas') {
       handler = empresasIndex
-    } else if (routePath.startsWith('empresas/') && id && id !== 'empresas') {
+    } else if (routePath === 'empresas/pendentes') {
+      handler = empresasPendentes
+    } else if (routePath === 'empresas/aprovar') {
+      handler = empresasAprovar
+    } else if (routePath.startsWith('empresas/') && id && id !== 'empresas' && id !== 'pendentes' && id !== 'aprovar') {
       req.query.id = id
       handler = empresasId
     }
@@ -153,9 +187,71 @@ export default async function handler(req, res) {
       req.query.id = id
       handler = usuariosId
     }
+    // Benefícios
+    else if (routePath === 'beneficios') {
+      handler = beneficiosIndex
+    } else if (routePath === 'beneficios/resgatar') {
+      handler = beneficiosResgatar
+    } else if (routePath === 'beneficios/resgatar-publico') {
+      console.log('✓ Rota beneficios/resgatar-publico encontrada')
+      handler = beneficiosResgatarPublico
+    } else if (routePath === 'beneficios/resgates') {
+      handler = beneficiosResgates
+    } else if (routePath.startsWith('beneficios/') && id && id !== 'beneficios' && id !== 'resgatar' && id !== 'resgatar-publico' && id !== 'resgates') {
+      req.query.id = id
+      handler = beneficiosId
+    }
+    // Capacitações
+    else if (routePath === 'capacitacoes') {
+      handler = capacitacoesIndex
+    } else if (routePath === 'capacitacoes/inscrever') {
+      handler = capacitacoesInscrever
+    } else if (routePath === 'capacitacoes/inscrever-publico') {
+      handler = capacitacoesInscreverPublico
+    } else if (routePath === 'capacitacoes/inscritos') {
+      handler = capacitacoesInscritos
+    } else if (routePath.startsWith('capacitacoes/') && id && id !== 'capacitacoes' && id !== 'inscrever' && id !== 'inscrever-publico' && id !== 'inscritos') {
+      req.query.id = id
+      handler = capacitacoesId
+    }
+    // Eventos
+    else if (routePath === 'eventos') {
+      handler = eventosIndex
+    } else if (routePath === 'eventos/inscrever-publico') {
+      handler = eventosInscreverPublico
+    } else if (routePath === 'eventos/inscritos') {
+      handler = eventosInscritos
+    } else if (routePath.startsWith('eventos/') && id && id !== 'eventos' && id !== 'inscrever-publico' && id !== 'inscritos') {
+      req.query.id = id
+      handler = eventosId
+    }
+    // Notificações
+    else if (routePath === 'notificacoes') {
+      handler = notificacoesIndex
+    } else if (routePath === 'notificacoes/marcar-todas') {
+      handler = notificacoesMarcarTodas
+    } else if (routePath.startsWith('notificacoes/') && id && id !== 'notificacoes' && id !== 'marcar-todas') {
+      req.query.id = id
+      handler = notificacoesId
+    }
+    // Relatórios
+    else if (routePath === 'relatorios') {
+      handler = relatoriosIndex
+    }
+    // Exportar
+    else if (routePath === 'exportar') {
+      handler = exportarIndex
+    }
+    // Consultas
+    else if (routePath === 'consultas/buscar-cnpj') {
+      handler = buscarCNPJ
+    }
+    else if (routePath === 'consultas/buscar-cep') {
+      handler = buscarCEP
+    }
 
     if (handler) {
-      console.log('Handler encontrado, executando...')
+      console.log('Handler encontrado:', handler.name || 'anonymous', 'para rota:', routePath)
       try {
         return await handler(req, res)
       } catch (handlerError) {
@@ -171,9 +267,9 @@ export default async function handler(req, res) {
     }
 
     // Rota não encontrada
-    console.log('Rota não encontrada:', routePath)
+    console.log('❌ Rota não encontrada:', routePath, '| route array:', route, '| id:', id)
     corsHeaders(res)
-    res.status(404).json({ error: 'Rota não encontrada', routePath })
+    res.status(404).json({ error: 'Rota não encontrada', routePath, route, id })
   } catch (error) {
     console.error('Erro geral no handler:', error)
     console.error('Stack:', error.stack)

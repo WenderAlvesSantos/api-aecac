@@ -35,9 +35,10 @@ export default requireAuth(async function handler(req, res) {
     const hashedPassword = await hashPassword(password)
 
     const result = await db.collection('users').insertOne({
-      email,
+      email: email.trim().toLowerCase(),
       password: hashedPassword,
       name,
+      tipo: 'admin', // Usuários criados pelo admin são admin
       createdAt: new Date(),
     })
 

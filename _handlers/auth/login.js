@@ -39,19 +39,57 @@ export default async function handler(req, res) {
     
     // Normalizar email (trim e lowercase)
     const normalizedEmail = email.trim().toLowerCase()
-    const user = await db.collection('users').findOne({ 
-      email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') }
+    
+    // Buscar usuário ADMIN - tentar busca exata primeiro, depois case-insensitive
+    // Admin não tem tipo ou tem tipo 'admin'
+    let user = await db.collection('users').findOne({ 
+      email: normalizedEmail,
+      $or: [
+        { tipo: { $exists: false } }, // Usuários antigos sem tipo são admin
+        { tipo: 'admin' },
+        { tipo: null }
+      ]
     })
+    
+    // Se não encontrou, tentar busca case-insensitive
+    if (!user) {
+      user = await db.collection('users').findOne({ 
+        email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        $or: [
+          { tipo: { $exists: false } },
+          { tipo: 'admin' },
+          { tipo: null }
+        ]
+      })
+    }
 
     if (!user) {
       console.error('Login falhou: usuário não encontrado', { 
         emailRecebido: normalizedEmail,
-        usuariosNoBanco: await db.collection('users').find({}).toArray().then(users => users.map(u => u.email))
+        usuariosNoBanco: await db.collection('users').find({}).toArray().then(users => users.map(u => ({ email: u.email, id: u._id })))
       })
       return res.status(401).json({ error: 'Credenciais inválidas' })
     }
 
     console.log('Usuário encontrado:', { email: user.email, userId: user._id })
+    
+    // Verificar se a senha está hashada
+    if (!user.password) {
+      console.error('Login falhou: usuário sem senha', { email: user.email })
+      return res.status(401).json({ error: 'Usuário sem senha cadastrada. Entre em contato com o administrador.' })
+    }
+    
+    // Verificar se a senha é um hash bcrypt válido
+    const isBcryptHash = user.password.startsWith('$2a$') || user.password.startsWith('$2b$') || user.password.startsWith('$2y$')
+    
+    if (!isBcryptHash) {
+      console.error('Login falhou: senha não está hashada corretamente', { 
+        email: user.email,
+        passwordType: typeof user.password,
+        passwordLength: user.password.length
+      })
+      return res.status(401).json({ error: 'Senha do usuário precisa ser redefinida. Entre em contato com o administrador.' })
+    }
     
     const isValidPassword = await comparePassword(password, user.password)
     console.log('Validação de senha:', { isValidPassword })

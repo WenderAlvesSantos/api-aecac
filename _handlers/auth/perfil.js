@@ -11,9 +11,18 @@ async function handler(req, res) {
     try {
       const client = await clientPromise
       const db = client.db('aecac')
-      const user = await db.collection('users').findOne({ 
+      
+      // Tentar buscar primeiro na collection de associados
+      let user = await db.collection('users_associados').findOne({ 
         _id: new ObjectId(req.userId) 
       })
+      
+      // Se não encontrou, buscar na collection de admins
+      if (!user) {
+        user = await db.collection('users').findOne({ 
+          _id: new ObjectId(req.userId) 
+        })
+      }
 
       if (!user) {
         return res.status(404).json({ error: 'Usuário não encontrado' })
@@ -23,6 +32,8 @@ async function handler(req, res) {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
+        tipo: user.tipo || (user.empresaId ? 'associado' : 'admin'),
+        empresaId: user.empresaId || null,
       })
     } catch (error) {
       console.error('Erro ao buscar perfil:', error)
@@ -34,9 +45,19 @@ async function handler(req, res) {
 
       const client = await clientPromise
       const db = client.db('aecac')
-      const user = await db.collection('users').findOne({ 
+      
+      // Tentar buscar primeiro na collection de associados
+      let user = await db.collection('users_associados').findOne({ 
         _id: new ObjectId(req.userId) 
       })
+      let isAssociado = !!user
+      
+      // Se não encontrou, buscar na collection de admins
+      if (!user) {
+        user = await db.collection('users').findOne({ 
+          _id: new ObjectId(req.userId) 
+        })
+      }
 
       if (!user) {
         return res.status(404).json({ error: 'Usuário não encontrado' })
@@ -52,11 +73,18 @@ async function handler(req, res) {
       // Atualizar email (verificar se não existe)
       if (email && email !== user.email) {
         const normalizedEmail = email.toLowerCase().trim()
-        const existingUser = await db.collection('users').findOne({ 
+        
+        // Verificar em ambas as collections
+        const existingAssociado = await db.collection('users_associados').findOne({ 
           email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') },
           _id: { $ne: new ObjectId(req.userId) }
         })
-        if (existingUser) {
+        const existingAdmin = await db.collection('users').findOne({ 
+          email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') },
+          _id: { $ne: new ObjectId(req.userId) }
+        })
+        
+        if (existingAssociado || existingAdmin) {
           return res.status(400).json({ error: 'Email já está em uso' })
         }
         updateData.email = normalizedEmail
@@ -76,12 +104,14 @@ async function handler(req, res) {
         updateData.password = await hashPassword(newPassword)
       }
 
-      await db.collection('users').updateOne(
+      // Atualizar na collection correta
+      const collection = isAssociado ? 'users_associados' : 'users'
+      await db.collection(collection).updateOne(
         { _id: new ObjectId(req.userId) },
         { $set: updateData }
       )
 
-      const updatedUser = await db.collection('users').findOne({ 
+      const updatedUser = await db.collection(collection).findOne({ 
         _id: new ObjectId(req.userId) 
       })
 
@@ -89,6 +119,8 @@ async function handler(req, res) {
         id: updatedUser._id.toString(),
         name: updatedUser.name,
         email: updatedUser.email,
+        tipo: updatedUser.tipo || (updatedUser.empresaId ? 'associado' : 'admin'),
+        empresaId: updatedUser.empresaId || null,
       })
     } catch (error) {
       console.error('Erro ao atualizar perfil:', error)

@@ -2,6 +2,7 @@ import clientPromise from '../../lib/mongodb'
 import { requireAuth } from '../../middleware/auth'
 import { ObjectId } from 'mongodb'
 import { corsHeaders, handleOptions } from '../../middleware/cors'
+import { getUserInfo } from '../../lib/userInfo'
 
 // GET, PUT, DELETE - Operações em um evento específico
 export default async function handler(req, res) {
@@ -37,6 +38,23 @@ export default async function handler(req, res) {
         const client = await clientPromise
         const db = client.db('aecac')
 
+        // Verificar se o usuário tem permissão para editar este evento
+        const userInfo = await getUserInfo(req.userId)
+        const evento = await db.collection('eventos').findOne({ _id: new ObjectId(id) })
+        
+        if (!evento) {
+          return res.status(404).json({ error: 'Evento não encontrado' })
+        }
+
+        // Associado só pode editar eventos da própria empresa
+        if (userInfo.isAssociado) {
+          const eventoEmpresaId = evento.empresaId?.toString() || evento.empresaId
+          const userEmpresaId = userInfo.empresaId?.toString() || userInfo.empresaId
+          if (!userInfo.empresaId || eventoEmpresaId !== userEmpresaId) {
+            return res.status(403).json({ error: 'Você só pode editar eventos da sua empresa' })
+          }
+        }
+
         const updateData = {
           updatedAt: new Date(),
         }
@@ -60,8 +78,8 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Evento não encontrado' })
         }
 
-        const evento = await db.collection('eventos').findOne({ _id: new ObjectId(id) })
-        res.status(200).json(evento)
+        const eventoAtualizado = await db.collection('eventos').findOne({ _id: new ObjectId(id) })
+        res.status(200).json(eventoAtualizado)
       } catch (error) {
         console.error('Erro ao atualizar evento:', error)
         res.status(500).json({ error: 'Erro ao atualizar evento' })
@@ -72,6 +90,23 @@ export default async function handler(req, res) {
       try {
         const client = await clientPromise
         const db = client.db('aecac')
+
+        // Verificar se o usuário tem permissão para deletar este evento
+        const userInfo = await getUserInfo(req.userId)
+        const evento = await db.collection('eventos').findOne({ _id: new ObjectId(id) })
+        
+        if (!evento) {
+          return res.status(404).json({ error: 'Evento não encontrado' })
+        }
+
+        // Associado só pode deletar eventos da própria empresa
+        if (userInfo.isAssociado) {
+          const eventoEmpresaId = evento.empresaId?.toString() || evento.empresaId
+          const userEmpresaId = userInfo.empresaId?.toString() || userInfo.empresaId
+          if (!userInfo.empresaId || eventoEmpresaId !== userEmpresaId) {
+            return res.status(403).json({ error: 'Você só pode excluir eventos da sua empresa' })
+          }
+        }
 
         const result = await db.collection('eventos').deleteOne({ _id: new ObjectId(id) })
 
