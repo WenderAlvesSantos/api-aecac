@@ -21,38 +21,63 @@ export default async function handler(req, res) {
       const client = await clientPromise
       const db = client.db('aecac')
       
-      // Verificar se há token (usuário autenticado)
+      // Verificar se é área pública (sem query parameter 'area=logged')
+      // A área pública sempre retorna todos os itens (com e sem empresaId), independentemente de haver token
+      const isPublicArea = req.query.area !== 'logged'
       const token = req.headers.authorization?.replace('Bearer ', '')
       const hoje = new Date()
       hoje.setHours(0, 0, 0, 0) // Zerar horas para comparar apenas a data
       
       let query = {}
       
-      // Para usuários não autenticados (área pública), filtrar apenas por ativo
-      // A filtragem por data será feita no código para garantir compatibilidade
-      if (!token) {
+      // Área pública: sempre retornar todos os itens (com e sem empresaId), mesmo com token
+      if (isPublicArea) {
         // Considerar ativo se não existir o campo ou se for true
         query.$or = [
           { ativo: true },
           { ativo: { $exists: false } }
         ]
-      }
-      
-      if (token) {
-        // Se houver token, verificar se é associado para filtrar por empresa
+      } else if (token) {
+        // Área logada: verificar se é associado ou admin
         try {
           const { verifyToken } = await import('../../lib/auth')
           const decoded = verifyToken(token)
           if (decoded) {
             const userInfo = await getUserInfo(decoded.userId)
+            console.log('[CAPACITACOES] userInfo:', JSON.stringify({
+              isAssociado: userInfo.isAssociado,
+              empresaId: userInfo.empresaId,
+              empresaIdType: typeof userInfo.empresaId
+            }))
             if (userInfo.isAssociado && userInfo.empresaId) {
               // Associado só vê capacitações da própria empresa
-              query.empresaId = userInfo.empresaId
+              // Usar $or para buscar tanto como ObjectId quanto como string (compatibilidade)
+              const empresaIdStr = userInfo.empresaId.toString()
+              const empresaIdObj = ObjectId.isValid(empresaIdStr) ? new ObjectId(empresaIdStr) : null
+              console.log('[CAPACITACOES] Filtrando por empresaId - String:', empresaIdStr, 'ObjectId:', empresaIdObj)
+              query.$and = [
+                {
+                  $or: [
+                    { empresaId: empresaIdStr },
+                    ...(empresaIdObj ? [{ empresaId: empresaIdObj }] : [])
+                  ]
+                }
+              ]
+              console.log('[CAPACITACOES] Query final:', JSON.stringify(query, null, 2))
+            } else if (!userInfo.isAssociado) {
+              // Admin vê apenas capacitações da AECAC (sem empresaId)
+              query.$and = [
+                {
+                  $or: [
+                    { empresaId: null },
+                    { empresaId: { $exists: false } }
+                  ]
+                }
+              ]
             }
-            // Admin vê todas as capacitações (query permanece {})
           }
         } catch (error) {
-          // Se houver erro ao verificar token, tratar como não autenticado
+          // Se houver erro ao verificar token, tratar como área pública
           query.$or = [
             { ativo: true },
             { ativo: { $exists: false } }

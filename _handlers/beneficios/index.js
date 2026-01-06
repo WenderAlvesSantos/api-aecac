@@ -21,39 +21,92 @@ export default async function handler(req, res) {
       const client = await clientPromise
       const db = client.db('aecac')
       
-      // Verificar se há token (usuário autenticado)
+      // Verificar se é área pública (sem query parameter 'area=logged')
+      // A área pública sempre retorna todos os itens (com e sem empresaId), independentemente de haver token
+      const isPublicArea = req.query.area !== 'logged'
       const token = req.headers.authorization?.replace('Bearer ', '')
       const hoje = new Date()
       hoje.setHours(0, 0, 0, 0) // Zerar horas para comparar apenas a data
       
-      let query = { ativo: true }
+      let query = {}
       
-      // Para usuários não autenticados (área pública), filtrar também por validade
-      if (!token) {
-        query.$or = [
-          { validade: null }, // Sem validade (sempre válido)
-          { validade: { $gte: hoje } } // Validade maior ou igual a hoje
+      // Área pública: sempre retornar todos os itens (com e sem empresaId), mesmo com token
+      if (isPublicArea) {
+        query.$and = [
+          {
+            $or: [
+              { ativo: true },
+              { ativo: { $exists: false } }
+            ]
+          },
+          {
+            $or: [
+              { validade: null }, // Sem validade (sempre válido)
+              { validade: { $gte: hoje } } // Validade maior ou igual a hoje
+            ]
+          }
         ]
-      }
-      
-      if (token) {
-        // Se houver token, verificar se é associado para filtrar por empresa
+      } else if (token) {
+        // Área logada: verificar se é associado ou admin
         try {
           const { verifyToken } = await import('../../lib/auth')
           const decoded = verifyToken(token)
           if (decoded) {
             const userInfo = await getUserInfo(decoded.userId)
+            console.log('[BENEFICIOS] userInfo:', JSON.stringify({
+              isAssociado: userInfo.isAssociado,
+              empresaId: userInfo.empresaId,
+              empresaIdType: typeof userInfo.empresaId
+            }))
             if (userInfo.isAssociado && userInfo.empresaId) {
               // Associado só vê benefícios da própria empresa
-              query.empresaId = userInfo.empresaId
+              // Usar $or para buscar tanto como ObjectId quanto como string (compatibilidade)
+              const empresaIdStr = userInfo.empresaId.toString()
+              const empresaIdObj = ObjectId.isValid(empresaIdStr) ? new ObjectId(empresaIdStr) : null
+              console.log('[BENEFICIOS] Filtrando por empresaId - String:', empresaIdStr, 'ObjectId:', empresaIdObj)
+              query.$and = [
+                { ativo: true },
+                {
+                  $or: [
+                    { empresaId: empresaIdStr },
+                    ...(empresaIdObj ? [{ empresaId: empresaIdObj }] : [])
+                  ]
+                }
+              ]
+              console.log('[BENEFICIOS] Query final:', JSON.stringify(query, null, 2))
+            } else if (!userInfo.isAssociado) {
+              // Admin vê apenas benefícios da AECAC (sem empresaId)
+              query.$and = [
+                { ativo: true },
+                {
+                  $or: [
+                    { empresaId: null },
+                    { empresaId: { $exists: false } }
+                  ]
+                }
+              ]
+            } else {
+              // Se não for associado nem admin, ou associado sem empresaId
+              query.ativo = true
             }
-            // Admin vê todos os benefícios (query permanece { ativo: true })
+          } else {
+            query.ativo = true
           }
         } catch (error) {
-          // Se houver erro ao verificar token, tratar como não autenticado
-          query.$or = [
-            { validade: null },
-            { validade: { $gte: hoje } }
+          // Se houver erro ao verificar token, tratar como área pública
+          query.$and = [
+            {
+              $or: [
+                { ativo: true },
+                { ativo: { $exists: false } }
+              ]
+            },
+            {
+              $or: [
+                { validade: null },
+                { validade: { $gte: hoje } }
+              ]
+            }
           ]
         }
       }
@@ -102,6 +155,27 @@ export default async function handler(req, res) {
           } else {
             ben.quantidadeDisponivel = null // ilimitado
           }
+          
+          // Buscar dados da empresa se houver empresaId
+          if (ben.empresaId) {
+            try {
+              const empresaId = typeof ben.empresaId === 'string' 
+                ? new ObjectId(ben.empresaId) 
+                : ben.empresaId
+              const empresa = await db.collection('empresas').findOne({
+                _id: empresaId
+              })
+              if (empresa) {
+                ben.empresa = {
+                  nome: empresa.nome,
+                  imagem: empresa.imagem
+                }
+              }
+            } catch (error) {
+              console.error(`Erro ao buscar empresa para benefício ${ben._id.toString()}:`, error)
+            }
+          }
+          
           return ben
         })
       )

@@ -35,18 +35,7 @@ export default async function handler(req, res) {
           ]
         }).toArray()
 
-        console.log('Benefícios encontrados para empresa:', beneficios.length)
-        console.log('EmpresaId do associado:', userInfo.empresaId)
-
         const beneficioIds = beneficios.map(b => b._id.toString())
-
-        console.log('Benefício IDs (string):', beneficioIds)
-        console.log('Primeiro benefício exemplo:', beneficios[0] ? {
-          _id: beneficios[0]._id.toString(),
-          empresaId: beneficios[0].empresaId,
-          empresaIdType: typeof beneficios[0].empresaId,
-          titulo: beneficios[0].titulo
-        } : 'Nenhum benefício encontrado')
 
         // Buscar resgates privados (usuários logados)
         // beneficioId nos resgates está como string
@@ -59,12 +48,6 @@ export default async function handler(req, res) {
         const resgatesPublicos = await db.collection('resgates_publicos').find({
           beneficioId: { $in: beneficioIds }
         }).sort({ dataResgate: -1 }).toArray()
-        
-        console.log('Exemplo de resgate público:', resgatesPublicos[0] || 'Nenhum resgate público encontrado')
-
-        console.log('Resgates privados encontrados:', resgatesPrivados.length)
-        console.log('Resgates públicos encontrados:', resgatesPublicos.length)
-        console.log('Benefício IDs:', beneficioIds)
 
         // Combinar e formatar os resgates
         const todosResgates = [
@@ -86,9 +69,6 @@ export default async function handler(req, res) {
             telefone: r.telefone || '',
           }))
         ]
-
-        console.log('Total de resgates combinados:', todosResgates.length)
-        console.log('Resgates públicos formatados:', todosResgates.filter(r => r.tipo === 'publico'))
 
         // Ordenar por data (mais recentes primeiro)
         todosResgates.sort((a, b) => new Date(b.dataResgate) - new Date(a.dataResgate))
