@@ -27,59 +27,79 @@ export default async function handler(req, res) {
       hoje.setHours(0, 0, 0, 0) // Zerar horas para comparar apenas a data
       
       let query = {}
+      let userInfo = null
       
-      // Área pública: sempre retornar todos os itens (com e sem empresaId), mesmo com token
-      if (isPublicArea) {
+      // Verificar token primeiro para identificar se é Admin ou Associado
+      if (token) {
+        try {
+          const { verifyToken } = await import('../../lib/auth')
+          const decoded = verifyToken(token)
+          if (decoded) {
+            userInfo = await getUserInfo(decoded.userId)
+            console.log('🔍 [EVENTOS] userInfo:', {
+              userId: decoded.userId,
+              isAssociado: userInfo?.isAssociado,
+              isAdmin: userInfo?.isAdmin,
+              empresaId: userInfo?.empresaId,
+              isPublicArea,
+              hasToken: !!token
+            })
+          }
+        } catch (error) {
+          console.error('❌ [EVENTOS] Erro ao verificar token:', error)
+          // Erro ao verificar token, tratar como área pública
+        }
+      }
+      
+      // Se for Admin, SEMPRE filtrar apenas itens sem empresaId (mesmo sem area=logged)
+      if (userInfo && !userInfo.isAssociado && userInfo.isAdmin) {
+        console.log('✅ [EVENTOS] Admin detectado - filtrando apenas itens sem empresaId')
+        query.$and = [
+          {
+            $or: [
+              { ativo: true },
+              { ativo: { $exists: false } }
+            ]
+          },
+          {
+            $or: [
+              { empresaId: null },
+              { empresaId: { $exists: false } }
+            ]
+          }
+        ]
+      } else if (isPublicArea) {
+        // Área pública: sempre retornar todos os itens (com e sem empresaId), mesmo com token
         // Considerar ativo se não existir o campo ou se for true
         query.$or = [
           { ativo: true },
           { ativo: { $exists: false } }
         ]
-      } else if (token) {
+      } else if (token && userInfo) {
         // Área logada: verificar se é associado ou admin
-        try {
-          const { verifyToken } = await import('../../lib/auth')
-          const decoded = verifyToken(token)
-          if (decoded) {
-            const userInfo = await getUserInfo(decoded.userId)
-            console.log('[EVENTOS] userInfo:', JSON.stringify({
-              isAssociado: userInfo.isAssociado,
-              empresaId: userInfo.empresaId,
-              empresaIdType: typeof userInfo.empresaId
-            }))
-            if (userInfo.isAssociado && userInfo.empresaId) {
-              // Associado só vê eventos da própria empresa
-              // Usar $or para buscar tanto como ObjectId quanto como string (compatibilidade)
-              const empresaIdStr = userInfo.empresaId.toString()
-              const empresaIdObj = ObjectId.isValid(empresaIdStr) ? new ObjectId(empresaIdStr) : null
-              console.log('[EVENTOS] Filtrando por empresaId - String:', empresaIdStr, 'ObjectId:', empresaIdObj)
-              query.$and = [
-                {
-                  $or: [
-                    { empresaId: empresaIdStr },
-                    ...(empresaIdObj ? [{ empresaId: empresaIdObj }] : [])
-                  ]
-                }
+        if (userInfo.isAssociado && userInfo.empresaId) {
+          // Associado só vê eventos da própria empresa
+          // Usar $or para buscar tanto como ObjectId quanto como string (compatibilidade)
+          const empresaIdStr = userInfo.empresaId.toString()
+          const empresaIdObj = ObjectId.isValid(empresaIdStr) ? new ObjectId(empresaIdStr) : null
+          query.$and = [
+            {
+              $or: [
+                { ativo: true },
+                { ativo: { $exists: false } }
               ]
-              console.log('[EVENTOS] Query final:', JSON.stringify(query, null, 2))
-            } else if (!userInfo.isAssociado) {
-              // Admin vê apenas eventos da AECAC (sem empresaId)
-              query.$and = [
-                {
-                  $or: [
-                    { empresaId: null },
-                    { empresaId: { $exists: false } }
-                  ]
-                }
+            },
+            {
+              $or: [
+                { empresaId: empresaIdStr },
+                ...(empresaIdObj ? [{ empresaId: empresaIdObj }] : [])
               ]
             }
-          }
-        } catch (error) {
-          // Se houver erro ao verificar token, tratar como área pública
-          query.$or = [
-            { ativo: true },
-            { ativo: { $exists: false } }
           ]
+        } else if (userInfo.isAssociado && !userInfo.empresaId) {
+          // Associado sem empresaId não deve ver nada (ou apenas da AECAC, dependendo da regra)
+          // Por segurança, retornar vazio
+          query._id = new ObjectId('000000000000000000000000') // ID inválido para não retornar nada
         }
       }
       

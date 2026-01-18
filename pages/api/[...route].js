@@ -30,7 +30,8 @@ import usuariosIndex from '../../_handlers/usuarios/index'
 import usuariosId from '../../_handlers/usuarios/[id]'
 import authLogin from '../../_handlers/auth/login'
 import authRegister from '../../_handlers/auth/register'
-import authPerfil from '../../_handlers/auth/perfil'
+import authPerfilAdmin from '../../_handlers/auth/perfil-admin'
+import authPerfilAssociado from '../../_handlers/auth/perfil-associado'
 import authLoginAssociado from '../../_handlers/auth/login-associado'
 import authRegisterAssociado from '../../_handlers/auth/register-associado'
 import beneficiosIndex from '../../_handlers/beneficios/index'
@@ -135,8 +136,10 @@ export default async function handler(req, res) {
       handler = authRegister
     } else if (routePath === 'auth/register-associado') {
       handler = authRegisterAssociado
-    } else if (routePath === 'auth/perfil') {
-      handler = authPerfil
+    } else if (routePath === 'auth/perfil-admin') {
+      handler = authPerfilAdmin
+    } else if (routePath === 'auth/perfil-associado') {
+      handler = authPerfilAssociado
     }
     // Parceiros
     else if (routePath === 'parceiros') {
