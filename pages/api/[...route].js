@@ -24,6 +24,7 @@ import galeriaId from '../../_handlers/galeria/[id]'
 import galeriaOrdem from '../../_handlers/galeria/ordem'
 import diretoriaIndex from '../../_handlers/diretoria/index'
 import diretoriaId from '../../_handlers/diretoria/[id]'
+import diretoriaOrdem from '../../_handlers/diretoria/ordem'
 import sobreIndex from '../../_handlers/sobre/index'
 import configuracoesIndex from '../../_handlers/configuracoes/index'
 import usuariosIndex from '../../_handlers/usuarios/index'
@@ -53,6 +54,7 @@ import relatoriosIndex from '../../_handlers/relatorios/index'
 import exportarIndex from '../../_handlers/exportar/index'
 import buscarCNPJ from '../../_handlers/consultas/buscar-cnpj'
 import buscarCEP from '../../_handlers/consultas/buscar-cep'
+import featureFlags from '../../_handlers/feature-flags/index'
 
 export default async function handler(req, res) {
   try {
@@ -171,7 +173,9 @@ export default async function handler(req, res) {
     // Diretoria
     else if (routePath === 'diretoria') {
       handler = diretoriaIndex
-    } else if (routePath.startsWith('diretoria/') && id && id !== 'diretoria') {
+    } else if (routePath === 'diretoria/ordem') {
+      handler = diretoriaOrdem
+    } else if (routePath.startsWith('diretoria/') && id && id !== 'diretoria' && id !== 'ordem') {
       req.query.id = id
       handler = diretoriaId
     }
@@ -182,6 +186,10 @@ export default async function handler(req, res) {
     // Configurações
     else if (routePath === 'configuracoes') {
       handler = configuracoesIndex
+    }
+    // Feature Flags
+    else if (routePath === 'feature-flags') {
+      handler = featureFlags
     }
     // Usuários
     else if (routePath === 'usuarios') {

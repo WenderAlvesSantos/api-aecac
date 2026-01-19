@@ -19,7 +19,8 @@ export default async function handler(req, res) {
     try {
       const client = await clientPromise
       const db = client.db('aecac')
-      const diretoria = await db.collection('diretoria').find({}).toArray()
+      // Ordenar por campo 'ordem' em ordem crescente
+      const diretoria = await db.collection('diretoria').find({}).sort({ ordem: 1 }).toArray()
       res.status(200).json(diretoria)
     } catch (error) {
       console.error('Erro ao buscar diretoria:', error)
@@ -37,10 +38,20 @@ export default async function handler(req, res) {
         const client = await clientPromise
         const db = client.db('aecac')
 
+        // Buscar a maior ordem existente
+        const ultimoMembro = await db.collection('diretoria')
+          .find({})
+          .sort({ ordem: -1 })
+          .limit(1)
+          .toArray()
+        
+        const novaOrdem = ultimoMembro.length > 0 ? (ultimoMembro[0].ordem || 0) + 1 : 0
+
         const membro = {
           nome,
           cargo,
           foto: foto || null,
+          ordem: novaOrdem,
           createdAt: new Date(),
           updatedAt: new Date(),
         }

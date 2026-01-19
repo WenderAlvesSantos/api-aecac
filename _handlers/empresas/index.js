@@ -29,12 +29,13 @@ export default async function handler(req, res) {
   } else if (req.method === 'POST') {
     // POST público para cadastro de empresas (sem autenticação)
     try {
-      const { nome, categoria, descricao, telefone, whatsapp, email, endereco, imagem, site, facebook, instagram, linkedin, cnpj, cep, responsavel } = req.body
+      const { nome, categoria, descricao, telefone, whatsapp, email, endereco, imagem, site, facebook, instagram, linkedin, cnpj, cep, responsavel, preCadastro } = req.body
 
       console.log('Recebendo dados da empresa:', {
         nome,
         categoria,
         cnpj,
+        preCadastro,
         hasImagem: !!imagem,
         imagemLength: imagem ? imagem.length : 0,
       })
@@ -75,17 +76,22 @@ export default async function handler(req, res) {
         facebook: facebook || '',
         instagram: instagram || '',
         linkedin: linkedin || '',
-        status: 'pendente', // Status inicial: pendente de aprovação
+        status: preCadastro ? 'pre-cadastro' : 'pendente', // Status dinâmico baseado na flag
         createdAt: new Date(),
         updatedAt: new Date(),
       }
 
       const result = await db.collection('empresas').insertOne(empresa)
-      console.log('Empresa cadastrada com sucesso, aguardando aprovação. ID:', result.insertedId)
+      console.log('Empresa cadastrada com sucesso. Status:', empresa.status, 'ID:', result.insertedId)
+      
+      const mensagem = preCadastro 
+        ? 'Pré-cadastro realizado com sucesso! Entraremos em contato em breve.'
+        : 'Cadastro realizado com sucesso! Aguarde a aprovação do administrador.'
+      
       res.status(201).json({ 
         ...empresa, 
         _id: result.insertedId,
-        message: 'Cadastro realizado com sucesso! Aguarde a aprovação do administrador.'
+        message: mensagem
       })
     } catch (error) {
       console.error('Erro ao cadastrar empresa:', error)

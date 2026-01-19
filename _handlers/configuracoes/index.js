@@ -45,6 +45,16 @@ export default async function handler(req, res) {
             linkedin: '',
           },
           valorMensalidade: 100.00,
+          featureFlags: {
+            preLancamento: false,
+            mostrarParceiros: true,
+            mostrarEmpresas: true,
+            mostrarEventos: true,
+            mostrarBeneficios: true,
+            mostrarCapacitacoes: true,
+            mostrarGaleria: true,
+            preCadastroMode: false,
+          },
         }
         await db.collection('configuracoes').insertOne(configuracoes)
       }
@@ -52,6 +62,20 @@ export default async function handler(req, res) {
       // Garantir que valorMensalidade existe (para configurações antigas)
       if (!configuracoes.valorMensalidade) {
         configuracoes.valorMensalidade = 100.00
+      }
+      
+      // Garantir que featureFlags existe (para configurações antigas)
+      if (!configuracoes.featureFlags) {
+        configuracoes.featureFlags = {
+          preLancamento: false,
+          mostrarParceiros: true,
+          mostrarEmpresas: true,
+          mostrarEventos: true,
+          mostrarBeneficios: true,
+          mostrarCapacitacoes: true,
+          mostrarGaleria: true,
+          preCadastroMode: false,
+        }
       }
       
       console.log('Configurações encontradas:', !!configuracoes)
@@ -68,7 +92,7 @@ export default async function handler(req, res) {
   } else if (req.method === 'PUT') {
     return requireAuth(async (req, res) => {
       try {
-        const { contato, redesSociais, valorMensalidade } = req.body
+        const { contato, redesSociais, valorMensalidade, featureFlags } = req.body
 
         const client = await clientPromise
         const db = client.db('aecac')
@@ -85,6 +109,11 @@ export default async function handler(req, res) {
         // Adicionar valorMensalidade se fornecido
         if (valorMensalidade !== undefined) {
           updateData.valorMensalidade = parseFloat(valorMensalidade) || 100.00
+        }
+        
+        // Adicionar featureFlags se fornecido
+        if (featureFlags !== undefined) {
+          updateData.featureFlags = featureFlags
         }
 
         if (existingConfig) {
