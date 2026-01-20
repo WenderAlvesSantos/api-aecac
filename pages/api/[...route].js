@@ -55,6 +55,9 @@ import exportarIndex from '../../_handlers/exportar/index'
 import buscarCNPJ from '../../_handlers/consultas/buscar-cnpj'
 import buscarCEP from '../../_handlers/consultas/buscar-cep'
 import featureFlags from '../../_handlers/feature-flags/index'
+import documentosIndex from '../../_handlers/documentos/index'
+import documentosId from '../../_handlers/documentos/[id]'
+import documentosCategorias from '../../_handlers/documentos/categorias'
 
 export default async function handler(req, res) {
   try {
@@ -259,6 +262,15 @@ export default async function handler(req, res) {
     }
     else if (routePath === 'consultas/buscar-cep') {
       handler = buscarCEP
+    }
+    // Documentos
+    else if (routePath === 'documentos') {
+      handler = documentosIndex
+    } else if (routePath === 'documentos/categorias') {
+      handler = documentosCategorias
+    } else if (routePath.startsWith('documentos/') && id && id !== 'documentos' && id !== 'categorias') {
+      req.query.id = id
+      handler = documentosId
     }
 
     if (handler) {
