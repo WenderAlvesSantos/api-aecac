@@ -1,6 +1,7 @@
 import clientPromise from '../../lib/mongodb'
 import { requireAuth } from '../../middleware/auth'
 import { corsHeaders, handleOptions } from '../../middleware/cors'
+import { enviarEmailNovoCadastroPendente } from '../../lib/email'
 
 // Configurar bodyParser para aceitar até 10MB
 export const config = {
@@ -83,6 +84,14 @@ export default async function handler(req, res) {
 
       const result = await db.collection('empresas').insertOne(empresa)
       console.log('Empresa cadastrada com sucesso. Status:', empresa.status, 'ID:', result.insertedId)
+
+      // Disparo de email para admin não deve impedir o cadastro.
+      await enviarEmailNovoCadastroPendente({
+        ...empresa,
+        _id: result.insertedId,
+      }).catch((emailError) => {
+        console.error('Erro ao notificar admin sobre novo cadastro:', emailError)
+      })
       
       const mensagem = preCadastro 
         ? 'Pré-cadastro realizado com sucesso! Entraremos em contato em breve.'
