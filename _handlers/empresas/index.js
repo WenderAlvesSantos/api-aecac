@@ -24,15 +24,15 @@ export default async function handler(req, res) {
       const empresas = await db.collection('empresas').find({ status: 'aprovado' }).toArray()
       res.status(200).json(empresas)
     } catch (error) {
-      console.error('Erro ao buscar empresas:', error)
-      res.status(500).json({ error: 'Erro ao buscar empresas' })
+      console.error('Erro ao buscar fundadores (listagem pública):', error)
+      res.status(500).json({ error: 'Erro ao carregar fundadores' })
     }
   } else if (req.method === 'POST') {
-    // POST público para cadastro de empresas (sem autenticação)
+    // POST público: cadastro de fundador (coleção empresas; sem autenticação)
     try {
       const { nome, categoria, descricao, telefone, whatsapp, email, endereco, imagem, site, facebook, instagram, linkedin, cnpj, cep, responsavel, preCadastro } = req.body
 
-      console.log('Recebendo dados da empresa:', {
+      console.log('Recebendo cadastro de fundador:', {
         nome,
         categoria,
         cnpj,
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       // Verificar se já existe empresa com este CNPJ
       const empresaExistente = await db.collection('empresas').findOne({ cnpj: cnpjLimpo })
       if (empresaExistente) {
-        return res.status(409).json({ error: 'Já existe uma empresa cadastrada com este CNPJ.' })
+        return res.status(409).json({ error: 'Já existe um cadastro de fundador com este CNPJ.' })
       }
 
       const empresa = {
@@ -83,7 +83,7 @@ export default async function handler(req, res) {
       }
 
       const result = await db.collection('empresas').insertOne(empresa)
-      console.log('Empresa cadastrada com sucesso. Status:', empresa.status, 'ID:', result.insertedId)
+      console.log('Cadastro de fundador salvo. Status:', empresa.status, 'ID:', result.insertedId)
 
       // Disparo de email para admin não deve impedir o cadastro.
       await enviarEmailNovoCadastroPendente({
@@ -94,8 +94,8 @@ export default async function handler(req, res) {
       })
       
       const mensagem = preCadastro 
-        ? 'Pré-cadastro realizado com sucesso! Entraremos em contato em breve.'
-        : 'Cadastro realizado com sucesso! Aguarde a aprovação do administrador.'
+        ? 'Pré-cadastro de fundador realizado com sucesso! Entraremos em contato em breve.'
+        : 'Cadastro de fundador enviado com sucesso! Aguarde a aprovação do administrador.'
       
       res.status(201).json({ 
         ...empresa, 
@@ -103,8 +103,8 @@ export default async function handler(req, res) {
         message: mensagem
       })
     } catch (error) {
-      console.error('Erro ao cadastrar empresa:', error)
-      res.status(500).json({ error: 'Erro ao cadastrar empresa' })
+      console.error('Erro ao cadastrar fundador:', error)
+      res.status(500).json({ error: 'Erro ao enviar cadastro de fundador' })
     }
   } else {
     res.status(405).json({ error: 'Método não permitido' })

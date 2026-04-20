@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       const empresa = await db.collection('empresas').findOne({ _id: new ObjectId(id) })
 
       if (!empresa) {
-        return res.status(404).json({ error: 'Empresa não encontrada' })
+        return res.status(404).json({ error: 'Cadastro não encontrado' })
       }
 
       // Verificar se o usuário tem permissão para ver esta empresa
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
             // Associado pode ver apenas a própria empresa (mesmo se não estiver aprovada)
             if (userInfo.isAssociado) {
               if (userInfo.empresaId !== id) {
-                return res.status(403).json({ error: 'Você não tem permissão para ver esta empresa' })
+                return res.status(403).json({ error: 'Você não tem permissão para ver este cadastro' })
               }
               // Associado pode ver a própria empresa
               return res.status(200).json(empresa)
@@ -64,13 +64,13 @@ export default async function handler(req, res) {
 
       // Se não houver token ou não for associado/admin, só retornar se estiver aprovada (público)
       if (empresa.status !== 'aprovado') {
-        return res.status(404).json({ error: 'Empresa não encontrada' })
+        return res.status(404).json({ error: 'Cadastro não encontrado' })
       }
 
       res.status(200).json(empresa)
     } catch (error) {
-      console.error('Erro ao buscar empresa:', error)
-      res.status(500).json({ error: 'Erro ao buscar empresa' })
+      console.error('Erro ao buscar cadastro:', error)
+      res.status(500).json({ error: 'Erro ao buscar cadastro' })
     }
   } else if (req.method === 'PUT') {
     return requireAuth(async (req, res) => {
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
         if (userInfo.isAssociado) {
           // Associado só pode atualizar a própria empresa
           if (!userInfo.empresaId || userInfo.empresaId !== id) {
-            return res.status(403).json({ error: 'Você só pode atualizar os dados da sua própria empresa' })
+            return res.status(403).json({ error: 'Você só pode atualizar o seu próprio cadastro de fundador' })
           }
         }
         // Admin pode atualizar qualquer empresa
@@ -110,7 +110,7 @@ export default async function handler(req, res) {
           })
           
           if (empresaComCNPJ) {
-            return res.status(409).json({ error: 'Já existe outra empresa cadastrada com este CNPJ.' })
+            return res.status(409).json({ error: 'Já existe outro cadastro de fundador com este CNPJ.' })
           }
         }
 
@@ -147,14 +147,14 @@ export default async function handler(req, res) {
         )
 
         if (result.matchedCount === 0) {
-          return res.status(404).json({ error: 'Empresa não encontrada' })
+          return res.status(404).json({ error: 'Cadastro não encontrado' })
         }
 
         const empresa = await db.collection('empresas').findOne({ _id: new ObjectId(id) })
         res.status(200).json(empresa)
       } catch (error) {
-        console.error('Erro ao atualizar empresa:', error)
-        res.status(500).json({ error: 'Erro ao atualizar empresa' })
+        console.error('Erro ao atualizar cadastro:', error)
+        res.status(500).json({ error: 'Erro ao atualizar cadastro' })
       }
     })(req, res)
   } else if (req.method === 'DELETE') {
@@ -166,13 +166,13 @@ export default async function handler(req, res) {
         const result = await db.collection('empresas').deleteOne({ _id: new ObjectId(id) })
 
         if (result.deletedCount === 0) {
-          return res.status(404).json({ error: 'Empresa não encontrada' })
+          return res.status(404).json({ error: 'Cadastro não encontrado' })
         }
 
-        res.status(200).json({ message: 'Empresa deletada com sucesso' })
+        res.status(200).json({ message: 'Cadastro de fundador excluído com sucesso' })
       } catch (error) {
-        console.error('Erro ao deletar empresa:', error)
-        res.status(500).json({ error: 'Erro ao deletar empresa' })
+        console.error('Erro ao excluir cadastro:', error)
+        res.status(500).json({ error: 'Erro ao excluir cadastro' })
       }
     })(req, res)
   } else {

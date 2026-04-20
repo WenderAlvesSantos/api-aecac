@@ -32,7 +32,7 @@ export default async function handler(req, res) {
             linkedin: emp.linkedin,
             dataCadastro: emp.createdAt,
           }))
-          filename = 'empresas'
+          filename = 'fundadores'
         } else if (tipo === 'usuarios') {
           // Buscar admins e associados
           const admins = await db.collection('users').find({}).toArray()

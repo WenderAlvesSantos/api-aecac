@@ -14,7 +14,7 @@ export default async function handler(req, res) {
         const { empresaId, acao } = req.body // acao: 'aprovar' ou 'rejeitar'
 
         if (!empresaId || !acao) {
-          return res.status(400).json({ error: 'ID da empresa e ação são obrigatórios' })
+          return res.status(400).json({ error: 'ID do cadastro e ação são obrigatórios' })
         }
 
         if (acao !== 'aprovar' && acao !== 'rejeitar') {
@@ -71,8 +71,8 @@ export default async function handler(req, res) {
               await db.collection('notificacoes').insertOne({
                 userId: usuarioAssociado._id.toString(),
                 tipo: 'geral',
-                titulo: 'Empresa Aprovada! 🎉',
-                mensagem: `Sua empresa "${empresa.nome}" foi aprovada! Agora você pode acessar todos os benefícios exclusivos da AECAC.`,
+                titulo: 'Cadastro de fundador aprovado! 🎉',
+                mensagem: `Seu cadastro como fundador (${empresa.nome}) foi aprovado! Agora você pode acessar todos os benefícios exclusivos da AECAC.`,
                 link: '/associado',
                 lida: false,
                 createdAt: new Date(),
@@ -83,8 +83,8 @@ export default async function handler(req, res) {
               await db.collection('notificacoes_pendentes').insertOne({
                 email: normalizedEmail,
                 tipo: 'geral',
-                titulo: 'Empresa Aprovada! 🎉',
-                mensagem: `Sua empresa "${empresa.nome}" foi aprovada! Crie sua conta de associado para acessar todos os benefícios exclusivos.`,
+                titulo: 'Cadastro de fundador aprovado! 🎉',
+                mensagem: `Seu cadastro como fundador (${empresa.nome}) foi aprovado! Crie sua conta de associado para acessar todos os benefícios exclusivos.`,
                 link: '/associado/login',
                 empresaId: empresaId,
                 createdAt: new Date(),
@@ -97,11 +97,11 @@ export default async function handler(req, res) {
         }
         
         res.status(200).json({ 
-          message: `Empresa ${acao === 'aprovar' ? 'aprovada' : 'rejeitada'} com sucesso`,
+          message: `Cadastro ${acao === 'aprovar' ? 'aprovado' : 'rejeitado'} com sucesso`,
           empresa 
         })
       } catch (error) {
-        console.error('Erro ao aprovar/rejeitar empresa:', error)
+        console.error('Erro ao aprovar/rejeitar cadastro de fundador:', error)
         res.status(500).json({ error: 'Erro ao processar solicitação' })
       }
     })(req, res)

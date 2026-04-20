@@ -13,7 +13,13 @@ export default async function handler(req, res) {
         const client = await clientPromise
         const db = client.db('aecac')
 
-        const query = status ? { status } : {}
+        // "pendente" na UI inclui pré-cadastro de fundadores (pre-cadastro) na mesma fila.
+        const query =
+          status === 'pendente'
+            ? { status: { $in: ['pendente', 'pre-cadastro'] } }
+            : status
+              ? { status }
+              : {}
         const empresas = await db.collection('empresas')
           .find(query)
           .sort({ createdAt: -1 })
@@ -21,8 +27,8 @@ export default async function handler(req, res) {
 
         res.status(200).json(empresas)
       } catch (error) {
-        console.error('Erro ao buscar empresas:', error)
-        res.status(500).json({ error: 'Erro ao buscar empresas' })
+        console.error('Erro ao buscar cadastros de fundadores:', error)
+        res.status(500).json({ error: 'Erro ao buscar fundadores' })
       }
     })(req, res)
   } else {
