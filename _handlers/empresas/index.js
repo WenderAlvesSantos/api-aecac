@@ -1,15 +1,57 @@
 import clientPromise from '../../lib/mongodb'
-import { requireAuth } from '../../middleware/auth'
 import { corsHeaders, handleOptions } from '../../middleware/cors'
-import { enviarEmailNovoCadastroPendente } from '../../lib/email'
+import { enviarCadastroFundadorComCartaPdf, enviarEmailNovoCadastroPendente } from '../../lib/email'
+import { verifyToken, getTokenFromRequest } from '../../lib/auth'
 
-// Configurar bodyParser para aceitar até 10MB
 export const config = {
   api: {
     bodyParser: {
       sizeLimit: '10mb',
     },
   },
+}
+
+function trimStr(v) {
+  return typeof v === 'string' ? v.trim() : ''
+}
+
+function parseAssinaturaBase64(assinaturaCarta) {
+  const m = /^data:image\/(png|jpeg|jpg);base64,([\s\S]+)$/i.exec(assinaturaCarta || '')
+  if (!m) return null
+  try {
+    return Buffer.from(m[2], 'base64')
+  } catch {
+    return null
+  }
+}
+
+function validarCartaPublica(cartaAdesao, assinaturaCarta) {
+  if (!cartaAdesao || typeof cartaAdesao !== 'object') {
+    return { ok: false, error: 'Carta de adesão não informada. Preencha e assine antes de enviar.' }
+  }
+  const rg = trimStr(cartaAdesao.rg)
+  const cpf = trimStr(cartaAdesao.cpf).replace(/\D/g, '')
+  const dia = trimStr(cartaAdesao.dia)
+  const mes = trimStr(cartaAdesao.mes)
+  const ano = trimStr(cartaAdesao.ano)
+  if (!rg || rg.length < 3) return { ok: false, error: 'RG na carta de adesão é obrigatório.' }
+  if (!cpf || cpf.length !== 11) return { ok: false, error: 'CPF na carta de adesão deve conter 11 dígitos.' }
+  if (!dia || !/^\d{1,2}$/.test(dia)) return { ok: false, error: 'Preencha o dia da data na carta de adesão.' }
+  if (!mes || mes.length < 3) return { ok: false, error: 'Preencha o mês por extenso na carta de adesão.' }
+  if (!ano || !/^\d{2}$/.test(ano)) return { ok: false, error: 'Preencha os dois dígitos do ano na carta de adesão.' }
+  if (!assinaturaCarta || typeof assinaturaCarta !== 'string') {
+    return { ok: false, error: 'Assinatura na carta de adesão é obrigatória.' }
+  }
+  const assinaturaBuf = parseAssinaturaBase64(assinaturaCarta)
+  if (!assinaturaBuf || assinaturaBuf.length < 800) {
+    return { ok: false, error: 'Assinatura inválida ou muito curta. Desenhe a assinatura no campo indicado.' }
+  }
+  return {
+    ok: true,
+    cartaAdesaoSan: { rg, cpf, dia, mes, ano },
+    assinaturaBuf,
+    assinaturaCarta,
+  }
 }
 
 export default async function handler(req, res) {
@@ -20,7 +62,6 @@ export default async function handler(req, res) {
     try {
       const client = await clientPromise
       const db = client.db('aecac')
-      // Filtrar apenas empresas aprovadas para visualização pública
       const empresas = await db.collection('empresas').find({ status: 'aprovado' }).toArray()
       res.status(200).json(empresas)
     } catch (error) {
@@ -28,48 +69,123 @@ export default async function handler(req, res) {
       res.status(500).json({ error: 'Erro ao carregar fundadores' })
     }
   } else if (req.method === 'POST') {
-    // POST público: cadastro de fundador (coleção empresas; sem autenticação)
     try {
-      const { nome, categoria, descricao, telefone, whatsapp, email, endereco, imagem, site, facebook, instagram, linkedin, cnpj, cep, responsavel, preCadastro } = req.body
-
-      console.log('Recebendo cadastro de fundador:', {
+      const {
         nome,
         categoria,
+        descricao,
+        telefone,
+        whatsapp,
+        email,
+        endereco,
+        imagem,
+        site,
+        facebook,
+        instagram,
+        linkedin,
         cnpj,
+        cep,
+        responsavel,
         preCadastro,
-        hasImagem: !!imagem,
-        imagemLength: imagem ? imagem.length : 0,
-      })
+        cartaAdesao,
+        assinaturaCarta,
+      } = req.body
 
-      // Validar campos obrigatórios
       if (!nome || !categoria || !descricao || !cnpj) {
-        return res.status(400).json({ error: 'Campos obrigatórios faltando: nome, categoria, descrição e CNPJ são obrigatórios' })
+        return res.status(400).json({
+          error: 'Campos obrigatórios faltando: nome, categoria, descrição e CNPJ são obrigatórios',
+        })
       }
 
-      // Validar formato do CNPJ (deve ter 14 dígitos)
-      const cnpjLimpo = cnpj.replace(/\D/g, '')
+      const cnpjLimpo = String(cnpj).replace(/\D/g, '')
       if (cnpjLimpo.length !== 14) {
         return res.status(400).json({ error: 'CNPJ inválido. Deve conter 14 dígitos.' })
+      }
+
+      const token = getTokenFromRequest(req)
+      const authUser = token ? verifyToken(token) : null
+      const cadastroPublico = req.body.cadastroPublicoFundador === true
+      const hasCartaPayload =
+        cartaAdesao &&
+        typeof cartaAdesao === 'object' &&
+        assinaturaCarta &&
+        typeof assinaturaCarta === 'string' &&
+        assinaturaCarta.length > 100
+
+      const adminSemCarta = authUser && !hasCartaPayload && !cadastroPublico
+
+      if (!adminSemCarta) {
+        const emailTrim = trimStr(email)
+        if (!emailTrim || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+          return res.status(400).json({
+            error: 'E-mail válido é obrigatório para concluir o cadastro com a carta de adesão.',
+          })
+        }
       }
 
       const client = await clientPromise
       const db = client.db('aecac')
 
-      // Verificar se já existe empresa com este CNPJ
       const empresaExistente = await db.collection('empresas').findOne({ cnpj: cnpjLimpo })
       if (empresaExistente) {
         return res.status(409).json({ error: 'Já existe um cadastro de fundador com este CNPJ.' })
+      }
+
+      if (adminSemCarta) {
+        const empresa = {
+          nome,
+          categoria,
+          descricao,
+          cnpj: cnpjLimpo,
+          cep: cep ? String(cep).replace(/\D/g, '') : '',
+          telefone: telefone || '',
+          whatsapp: whatsapp || '',
+          email: trimStr(email) || '',
+          endereco: endereco || '',
+          responsavel: responsavel || '',
+          imagem: imagem || null,
+          site: site || '',
+          facebook: facebook || '',
+          instagram: instagram || '',
+          linkedin: linkedin || '',
+          status: preCadastro ? 'pre-cadastro' : 'pendente',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+
+        const result = await db.collection('empresas').insertOne(empresa)
+        await enviarEmailNovoCadastroPendente({ ...empresa, _id: result.insertedId }).catch((e) =>
+          console.error('Erro ao notificar admin (cadastro interno):', e)
+        )
+
+        const mensagem = preCadastro
+          ? 'Pré-cadastro de fundador realizado com sucesso! Entraremos em contato em breve.'
+          : 'Cadastro de fundador enviado com sucesso! Aguarde a aprovação do administrador.'
+
+        return res.status(201).json({ ...empresa, _id: result.insertedId, message: mensagem })
+      }
+
+      const v = validarCartaPublica(cartaAdesao, assinaturaCarta)
+      if (!v.ok) {
+        return res.status(400).json({ error: v.error })
+      }
+
+      const emailTrim = trimStr(email)
+      if (!emailTrim || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+        return res.status(400).json({
+          error: 'E-mail válido é obrigatório para concluir o cadastro com a carta de adesão.',
+        })
       }
 
       const empresa = {
         nome,
         categoria,
         descricao,
-        cnpj: cnpjLimpo, // Salvar CNPJ sem formatação
-        cep: cep ? cep.replace(/\D/g, '') : '', // Salvar CEP sem formatação
+        cnpj: cnpjLimpo,
+        cep: cep ? String(cep).replace(/\D/g, '') : '',
         telefone: telefone || '',
         whatsapp: whatsapp || '',
-        email: email || '',
+        email: emailTrim,
         endereco: endereco || '',
         responsavel: responsavel || '',
         imagem: imagem || null,
@@ -77,30 +193,47 @@ export default async function handler(req, res) {
         facebook: facebook || '',
         instagram: instagram || '',
         linkedin: linkedin || '',
-        status: preCadastro ? 'pre-cadastro' : 'pendente', // Status dinâmico baseado na flag
+        status: preCadastro ? 'pre-cadastro' : 'pendente',
+        cartaAdesao: v.cartaAdesaoSan,
+        assinaturaCarta: v.assinaturaCarta,
+        cartaAssinadaEm: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
       }
 
-      const result = await db.collection('empresas').insertOne(empresa)
-      console.log('Cadastro de fundador salvo. Status:', empresa.status, 'ID:', result.insertedId)
+      const { buildCartaAdesaoPdfBuffer } = await import('../../lib/cartaAdesaoPdf')
+      const pdfBuffer = await buildCartaAdesaoPdfBuffer(
+        {
+          nome: empresa.nome,
+          cnpj: empresa.cnpj,
+          responsavel: empresa.responsavel,
+          telefone: empresa.telefone,
+          email: empresa.email,
+          endereco: empresa.endereco,
+          cep: empresa.cep,
+        },
+        v.cartaAdesaoSan,
+        v.assinaturaBuf
+      )
 
-      // Disparo de email para admin não deve impedir o cadastro.
-      await enviarEmailNovoCadastroPendente({
+      const result = await db.collection('empresas').insertOne(empresa)
+      const empresaComId = { ...empresa, _id: result.insertedId }
+
+      await enviarCadastroFundadorComCartaPdf({
+        empresa: empresaComId,
+        pdfBuffer,
+      }).catch((emailError) => {
+        console.error('Erro ao enviar e-mails com PDF da carta:', emailError)
+      })
+
+      const mensagem = preCadastro
+        ? 'Pré-cadastro de fundador concluído com carta de adesão assinada.'
+        : 'Cadastro de fundador enviado com carta de adesão assinada. Aguarde a análise da equipe.'
+
+      return res.status(201).json({
         ...empresa,
         _id: result.insertedId,
-      }).catch((emailError) => {
-        console.error('Erro ao notificar admin sobre novo cadastro:', emailError)
-      })
-      
-      const mensagem = preCadastro 
-        ? 'Pré-cadastro de fundador realizado com sucesso! Entraremos em contato em breve.'
-        : 'Cadastro de fundador enviado com sucesso! Aguarde a aprovação do administrador.'
-      
-      res.status(201).json({ 
-        ...empresa, 
-        _id: result.insertedId,
-        message: mensagem
+        message: mensagem,
       })
     } catch (error) {
       console.error('Erro ao cadastrar fundador:', error)
@@ -110,4 +243,3 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Método não permitido' })
   }
 }
-
