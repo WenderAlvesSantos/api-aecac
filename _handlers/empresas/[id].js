@@ -75,7 +75,7 @@ export default async function handler(req, res) {
   } else if (req.method === 'PUT') {
     return requireAuth(async (req, res) => {
       try {
-        const { nome, categoria, descricao, telefone, whatsapp, email, endereco, imagem, site, facebook, instagram, linkedin, cnpj, cep, responsavel } = req.body
+        const { nome, categoria, descricao, telefone, whatsapp, email, endereco, imagem, site, facebook, instagram, linkedin, cnpj, cep, responsavel, rg, cpf } = req.body
 
         console.log('Atualizando empresa:', {
           id,
@@ -136,6 +136,8 @@ export default async function handler(req, res) {
         if (instagram !== undefined) updateData.instagram = instagram
         if (linkedin !== undefined) updateData.linkedin = linkedin
         if (cep !== undefined) updateData.cep = cep ? cep.replace(/\D/g, '') : ''
+        if (rg !== undefined) updateData.rg = typeof rg === 'string' ? rg.trim() : rg
+        if (cpf !== undefined) updateData.cpf = cpf ? String(cpf).replace(/\D/g, '') : ''
         if (imagem !== undefined) {
           updateData.imagem = imagem // Pode ser null para remover ou base64 para adicionar/atualizar
           console.log('Imagem será atualizada:', imagem ? 'Sim' : 'Removida')

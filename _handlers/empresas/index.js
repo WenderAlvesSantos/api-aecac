@@ -89,6 +89,8 @@ export default async function handler(req, res) {
         preCadastro,
         cartaAdesao,
         assinaturaCarta,
+        rg,
+        cpf,
       } = req.body
 
       if (!nome || !categoria || !descricao || !cnpj) {
@@ -143,6 +145,8 @@ export default async function handler(req, res) {
           email: trimStr(email) || '',
           endereco: endereco || '',
           responsavel: responsavel || '',
+          rg: trimStr(rg),
+          cpf: String(cpf || '').replace(/\D/g, ''),
           imagem: imagem || null,
           site: site || '',
           facebook: facebook || '',
@@ -165,7 +169,18 @@ export default async function handler(req, res) {
         return res.status(201).json({ ...empresa, _id: result.insertedId, message: mensagem })
       }
 
-      const v = validarCartaPublica(cartaAdesao, assinaturaCarta)
+      const cartaBase = cartaAdesao && typeof cartaAdesao === 'object' ? { ...cartaAdesao } : {}
+      const cpfBody = String(cpf || '').replace(/\D/g, '')
+      const cpfCarta = String(cartaBase.cpf || '').replace(/\D/g, '')
+      const rgBody = trimStr(rg)
+      const rgCarta = trimStr(cartaBase.rg)
+      const cartaMerged = {
+        ...cartaBase,
+        rg: rgBody || rgCarta,
+        cpf: cpfBody || cpfCarta,
+      }
+
+      const v = validarCartaPublica(cartaMerged, assinaturaCarta)
       if (!v.ok) {
         return res.status(400).json({ error: v.error })
       }
@@ -188,6 +203,8 @@ export default async function handler(req, res) {
         email: emailTrim,
         endereco: endereco || '',
         responsavel: responsavel || '',
+        rg: v.cartaAdesaoSan.rg,
+        cpf: v.cartaAdesaoSan.cpf,
         imagem: imagem || null,
         site: site || '',
         facebook: facebook || '',
